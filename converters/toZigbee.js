@@ -1599,13 +1599,23 @@ const converters = {
             }
 
             const state = value.toLowerCase();
+            let oldstate = 1;
+            if (state === 'on') {
+                oldstate = 108;
+            }
+            let channel = 1.0;
             const postfix = meta.endpoint_name || 'left';
             await entity.command('genOnOff', 'toggle', {}, {transactionSequenceNumber: 0});
             const payloadOn = {0x0001: {value: Buffer.from([1, 0, 0, 0, 0, 0, 0, 0]), type: 1}};
             const payloadOff = {0x0001: {value: Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]), type: 1}};
             const payloadOnRight = {0x0001: {value: Buffer.from([2, 0, 0, 0, 0, 0, 0, 0]), type: 2}};
             const payloadOffRight = {0x0001: {value: Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]), type: 2}};
+            const payloadOnBottomLeft = {0x0001: {value: Buffer.from([4, 0, 0, 0, 0, 0, 0, 0]), type: 4}};
+            const payloadOffBottomLeft = {0x0001: {value: Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]), type: 4}};
+            const payloadOnBottomRight = {0x0001: {value: Buffer.from([8, 0, 0, 0, 0, 0, 0, 0]), type: 136}};
+            const payloadOffBottomRight = {0x0001: {value: Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]), type: 136}};
             if (postfix === 'left') {
+                await entity.command('genLevelCtrl', 'moveToLevelWithOnOff', {level: oldstate, transtime: channel});
                 await entity.write('genPowerCfg', (state === 'on') ? payloadOn : payloadOff,
                     {
                         manufacturerCode: 0x1ad2, disableDefaultResponse: true, disableResponse: true,
@@ -1613,12 +1623,28 @@ const converters = {
                     });
                 return {state: {state_left: value.toUpperCase()}, readAfterWriteTime: 250};
             } else if (postfix === 'right') {
+                channel = 2.0;
+                await entity.command('genLevelCtrl', 'moveToLevelWithOnOff', {level: oldstate, transtime: channel});
                 await entity.write('genPowerCfg', (state === 'on') ? payloadOnRight : payloadOffRight,
                     {
                         manufacturerCode: 0x1ad2, disableDefaultResponse: true, disableResponse: true,
                         reservedBits: 3, direction: 1, transactionSequenceNumber: 0xe9,
                     });
                 return {state: {state_right: value.toUpperCase()}, readAfterWriteTime: 250};
+            } else if (postfix === 'bottom_right') {
+                await entity.write('genPowerCfg', (state === 'on') ? payloadOnBottomRight : payloadOffBottomRight,
+                    {
+                        manufacturerCode: 0x1ad2, disableDefaultResponse: true, disableResponse: true,
+                        reservedBits: 3, direction: 1, transactionSequenceNumber: 0xe9,
+                    });
+                return {state: {state_bottom_right: value.toUpperCase()}, readAfterWriteTime: 250};
+            } else if (postfix === 'bottom_left') {
+                await entity.write('genPowerCfg', (state === 'on') ? payloadOnBottomLeft : payloadOffBottomLeft,
+                    {
+                        manufacturerCode: 0x1ad2, disableDefaultResponse: true, disableResponse: true,
+                        reservedBits: 3, direction: 1, transactionSequenceNumber: 0xe9,
+                    });
+                return {state: {state_bottom_left: value.toUpperCase()}, readAfterWriteTime: 250};
             }
             return {state: {state: value.toUpperCase()}, readAfterWriteTime: 250};
         },
@@ -2005,7 +2031,7 @@ const converters = {
             await entity.read('genBasic', [0x0033], manufacturerOptions.hue);
         },
     },
-    RTCGQ13LM_motion_sensitivity: {
+    aqara_motion_sensitivity: {
         key: ['motion_sensitivity'],
         convertSet: async (entity, key, value, meta) => {
             const lookup = {'low': 1, 'medium': 2, 'high': 3};
@@ -2046,6 +2072,12 @@ const converters = {
         },
         convertGet: async (entity, key, meta) => {
             await entity.read('aqaraOpple', [0x0146], manufacturerOptions.xiaomi);
+        },
+    },
+    RTCZCGQ11LM_reset_nopresence_status: {
+        key: ['reset_nopresence_status'],
+        convertSet: async (entity, key, value, meta) => {
+            await entity.write('aqaraOpple', {0x0157: {value: 1, type: 0x20}}, manufacturerOptions.xiaomi);
         },
     },
     ZigUP_lock: {
@@ -3430,7 +3462,7 @@ const converters = {
             // upscale to 1000
             let newValue;
             let dp = tuya.dataPoints.dimmerLevel;
-            if (meta.device.manufacturerName === '_TZE200_9i9dt8is' || meta.device.manufacturerName === '_TZE200_dfxkcots') {
+            if (['_TZE200_3p5ydos3', '_TZE200_9i9dt8is', '_TZE200_dfxkcots'].includes(meta.device.manufacturerName)) {
                 dp = tuya.dataPoints.eardaDimmerLevel;
             }
             if (key === 'brightness_min') {
